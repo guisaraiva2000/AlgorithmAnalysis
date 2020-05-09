@@ -4,13 +4,12 @@
 #include <string.h>
 #include <climits>
 
-#define X 25
 using namespace std;
 
 typedef struct Node{
     int id, adj_counter, pi;
     bool isShop, isCitizen, visited;
-    int *closest_shop, *adj;
+    int *adj;
 } node;
 
 int shops, citizens, avenues, streets, V;
@@ -26,12 +25,12 @@ void make_cap_mat(){
 
     mat = new int*[V];
     for(int u = 0; u < V; u++)
-        mat[u] = new int[V-2];
+        mat[u] = new int[V];
 
     int i;
     for(i = 0; i < V; i++){
         vertices[i].id = i;
-        vertices[i].adj = new int[4];
+        vertices[i].adj = new int[V - 2];
         vertices[i].adj_counter = 0;
         vertices[i].isShop = false;
         vertices[i].isCitizen = false;
@@ -40,7 +39,7 @@ void make_cap_mat(){
 
     int count, lat = 1;
     for(i = 1; i < V - 1; i++){
-        count = 1;
+        count = 0;
         if(i >= lat + avenues)
             lat += avenues;
 
@@ -62,18 +61,6 @@ void make_cap_mat(){
         }
         vertices[i].adj_counter = count;
     }
-
-    for(i = 1; i < V; i++){
-        if (vertices[i].isCitizen) {
-            mat[0][i] = 1;
-            vertices[0].adj[vertices[0].adj_counter++] = i;
-        }
-        if(vertices[i].isShop) {
-            mat[V][i] = 1;
-            vertices[V].adj[vertices[V].adj_counter++] = i;
-        }
-    }
-
 }
 
 void process_input(){
@@ -89,22 +76,33 @@ void process_input(){
     int x, y, n;
     for(int i = 0; i < shops; i++){
         scanf("%d %d", &x, &y);
-        n = (y-1) * avenues + x - 1;
+        n = (y-1) * avenues + x;
         sh[i] = n;
         vertices[n].isShop = true;
     }
     for(int i = 0; i < citizens; i++){
         scanf("%d %d", &x, &y);
-        n = (y-1) * avenues + x - 1;
+        n = (y-1) * avenues + x;
         cit[i] = n;
-        vertices[n].isShop = true;
+        vertices[n].isCitizen = true;
     }
-}
 
+    for(int i = 1; i < V; i++){
+        if (vertices[i].isCitizen) {
+            mat[0][i] = 1;
+            vertices[0].adj[vertices[0].adj_counter++] = i;
+        }
+        if(vertices[i].isShop) {
+            mat[i][V-1] = 1;
+            vertices[i].adj[vertices[i].adj_counter++] = V-1;
+        }
+    }
+
+}
 
 /* Returns true if there is a path from source 's' to sink 't' in
   residual graph. Also fills parent[] to store the path */
-bool bfs(int rGraph[X][X], int s, int t, int parent[])
+bool bfs(int s, int t, int parent[])
 {
     // Create a visited array and mark all vertices as not visited
     bool visited[V];
@@ -126,24 +124,62 @@ bool bfs(int rGraph[X][X], int s, int t, int parent[])
 
         for (int i = 0; i < vertices[u].adj_counter; i++){
             v = vertices[u].adj[i];
-            if (!visited[v]  && rGraph[u][v] > 0) {
+            if (!visited[v]  && mat[u][v] > 0) {
                 q.push(v);
                 parent[v] = u;
                 visited[v] = true;
-
             }
         }
     }
-
     // If we reached sink in BFS starting from source, then return
     // true, else false
     return visited[t];
 }
 
+int findDisjointPaths(int s, int t)
+{
+    int u, v;
+
+    int parent[V];  // This array is filled by BFS and to store path
+
+    int max_flow = 0;  // There is no flow initially
+
+    // Augment the flow while tere is path from source to sink
+    while (bfs(s, t, parent))
+    {
+        // Find minimum residual capacity of the edges along the
+        // path filled by BFS. Or we can say find the maximum flow
+        // through the path found.
+        int path_flow = INT_MAX;
+
+        for (v=t; v!=s; v=parent[v])
+        {
+            u = parent[v];
+            path_flow = min(path_flow, mat[u][v]);
+        }
+
+        // update residual capacities of the edges and reverse edges
+        // along the path
+        for (v=t; v != s; v=parent[v])
+        {
+            u = parent[v];
+            mat[u][v] -= path_flow;
+            mat[v][u] += path_flow;
+        }
+
+        // Add path flow to overall flow
+        max_flow += path_flow;
+    }
+
+    // Return the overall flow (max_flow is equal to maximum
+    // number of edge-disjoint paths)
+    return max_flow;
+}
+
 void print_mat(){
     int i,j;
     for(i = 0; i < V ; i++) {
-        for (j = 0; j < V ; j++)
+        for (j = 0; j < V; j++)
             cout << mat[i][j] << " - ";
         cout << "\n";
     }
@@ -152,7 +188,8 @@ void print_mat(){
 int main() {
     process_input();
 
-
+    cout << findDisjointPaths(0, V-1);
+    //print_mat();
 
     return 0;
 }
