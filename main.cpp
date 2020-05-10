@@ -2,117 +2,99 @@
 #include <vector>
 #include <queue>
 #include <climits>
+#include <cstring>
 
 using namespace std;
 
-typedef struct Node{
-    int adj_counter;
-    bool isShop, isCitizen;
-    int *adj;
-} node;
-
-int shops, citizens, avenues, streets, V;
-int **mat;
-node *vertices;
-
-void make_cap_mat(){
-
-    mat = new int*[V];
-    for(int u = 0; u < V; u++)
-        mat[u] = new int[V];
-
-    int count, lat = 1;
-    for(int i = 1; i < V - 1; i++){
-        count = 0;
-        if(i >= lat + avenues)
-            lat += avenues;
-
-        if (vertices[i].isShop) vertices[i].adj = new int[5];
-        else vertices[i].adj = new int[4];
-
-        if(i + 1 < lat + avenues) {
-            vertices[i].adj[count++] = i + 1;
-            mat[i][i + 1] = 1;
-        }
-        if(i - 1 >= lat) {
-            vertices[i].adj[count++] = i - 1;
-            mat[i][i - 1] = 1;
-        }
-        if(i - avenues >= 1) {
-            vertices[i].adj[count++] = i - avenues;
-            mat[i][i - avenues] = 1;
-        }
-        if(i + avenues < V - 1) {
-            vertices[i].adj[count++] = i + avenues;
-            mat[i][i + avenues] = 1;
-        }
-        vertices[i].adj_counter = count;
-    }
-
-    for(int i = 1; i < V-1; i++) {
-        if (vertices[i].isCitizen) {
-            mat[0][i] = 1;
-            vertices[0].adj[vertices[0].adj_counter++] = i;
-        }
-        if(vertices[i].isShop) {
-            mat[i][V - 1] = 1;
-            vertices[i].adj[vertices[i].adj_counter++] = V - 1;
-        }
-    }
-}
+int shops = 0, citizens = 0, avenues = 0, streets = 0, V = 0;
+vector<int> *graph;
 
 void process_input(){
 
     cin >> avenues >> streets;
     cin >> shops >> citizens;
 
-    V = avenues * streets + 2;
+    V = avenues * streets * 2 + 2;
 
-    vertices = new node[V];
-
-    for(int i = 0; i < V; i++){
-        vertices[i].adj_counter = 0;
-        vertices[i].isShop = false;
-        vertices[i].isCitizen = false;
-    }
-
-    vertices[0].adj = new int[citizens];
+    graph = new vector<int>[V];
 
     int x, y, n;
     for(int i = 0; i < shops; i++){
         cin >> x >> y;
         n = (y-1) * avenues + x;
-        vertices[n].isShop = true;
+        graph[n * 2].push_back(V-1);
     }
     for(int i = 0; i < citizens; i++){
         cin >> x >> y;
         n = (y-1) * avenues + x;
-        vertices[n].isCitizen = true;
+        graph[0].push_back(n * 2 - 1);
     }
 
-    make_cap_mat();
+    int lat = 1;
+    for(int i = 2; i < V - 1; i+=2){
+        if(i / 2 >= lat + avenues)
+            lat += avenues;
+
+        if(i / 2 + 1 < lat + avenues)
+            graph[i].push_back(i + 1);
+
+        if(i / 2 - 1 >= lat)
+            graph[i].push_back((i / 2 - 1) * 2 - 1);
+
+        if(i / 2 - avenues >= 1)
+            graph[i].push_back((i / 2 - avenues) * 2 - 1);
+
+        if(i / 2  + avenues < V/2 - 1)
+            graph[i].push_back((i / 2  + avenues) * 2 - 1);
+
+        graph[i-1].push_back(i);
+    }
 }
 
-bool bfs(int s, int t, int* parent){
-    vector<bool> visited;
-    visited.reserve(V);
+static bool EraseFromUnorderedByIndex(int u, size_t inIndex ){
+    if ( inIndex < graph[u].size() ){
+        if ( inIndex != graph[u].size() - 1 )
+            graph[u][inIndex] = graph[u].back();
+        graph[u].pop_back();
+        return true;
+    }
+    return false;
+}
 
+bool isEdge(int u, int v){
+    for (int & i : graph[u])
+        if(i == v)
+            return true;
+
+    return false;
+}
+
+void deleteNode(int u, int v){
+    for (unsigned int i = 0 ; i < graph[u].size(); i++)
+        if(graph[u].at(i) == v) {
+            EraseFromUnorderedByIndex(u, i);
+            return;
+        }
+}
+
+bool bfs(int s, int t, int parent[]){
+    bool visited[V];
+    memset(visited, 0, sizeof(visited));
     queue <int> q;
     q.push(s);
     visited[s] = true;
     parent[s] = -1;
-    int v;
 
     while (!q.empty()){
         int u = q.front();
         q.pop();
 
-        for (int i = 0; i < vertices[u].adj_counter; i++){
-            v = vertices[u].adj[i];
-            if (!visited[v] && mat[u][v] > 0) {
+        if(u == t) return true;
+
+        for (int & v : graph[u]){
+            if (!visited[v]) {
                 parent[v] = u;
                 visited[v] = true;
-                if(v == u) return true;
                 q.push(v);
             }
         }
@@ -122,7 +104,7 @@ bool bfs(int s, int t, int* parent){
 
 int findDisjointPaths(int s, int t){
     int u, v;
-    int *parent = new int[V];
+    int parent[V];
     int max_flow = 0;
 
     while (bfs(s, t, parent)){
@@ -130,71 +112,30 @@ int findDisjointPaths(int s, int t){
 
         for (v=t; v!=s; v=parent[v]) {
             u = parent[v];
-            path_flow = min(path_flow, mat[u][v]);
+            if(isEdge(u , v))
+                path_flow = 1;
+            else
+                path_flow = 0;
         }
 
         for (v=t; v != s; v=parent[v]) {
             u = parent[v];
-            mat[u][v] -= path_flow;
-            mat[v][u] += path_flow;
+            deleteNode(u, v);
+            graph[v].push_back(u);
         }
         max_flow += path_flow;
     }
-    delete [] parent;
     return max_flow;
 }
-
-/*void print_mat(){
-    int i,j;
-    for(i = 0; i < V ; i++) {
-        cout << "{";
-        for (j = 0; j < V; j++)
-            cout << mat[i][j] << ",";
-        cout << "}," << endl;
-    }
-}*/
 
 int main() {
     process_input();
 
-    cout << findDisjointPaths(0, V-1) << endl;
-    //print_mat();
-
-    for(int u = 0; u < V; u++)
-        delete[] mat[u];
-    delete[] mat;
-
-    for(int i = 0; i < V ; i++)
-        delete[] vertices[i].adj;
-    delete[] vertices;
+    int s = 0, t = V - 1;
+    cout << findDisjointPaths(s, t) << endl;
+    delete[] graph;
 
     return 0;
 }
- /*
-           {{0,0,1,0,0,0,0,1,1,0,0,0,1,0,0,1,0,0,0,1,0,0,1,0,0,0,0},
-            {0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-            {0,1,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-            {0,0,1,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-            {0,0,0,1,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-            {0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-            {0,1,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-            {0,0,1,0,0,0,1,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-            {0,0,0,1,0,0,0,1,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0},
-            {0,0,0,0,1,0,0,0,1,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0},
-            {0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0},
-            {0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,1},
-            {0,0,0,0,0,0,0,1,0,0,0,1,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0},
-            {0,0,0,0,0,0,0,0,1,0,0,0,1,0,1,0,0,0,1,0,0,0,0,0,0,0,0},
-            {0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,1,0,0,0,1,0,0,0,0,0,0,0},
-            {0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0},
-            {0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,1,0,0,0,0,1},
-            {0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,1,0,0,0,1,0,0,0,1},
-            {0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,1,0,0,0,1,0,0,1},
-            {0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,1,0,0,0,1,0,0},
-            {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,1,0},
-            {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0},
-            {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,1,0,0,0},
-            {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,1,0,1},
-            {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,1,0},
-            {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0},
-            {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}};*/
+
+
