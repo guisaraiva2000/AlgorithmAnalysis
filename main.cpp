@@ -9,6 +9,7 @@ using namespace std;
 int shops = 0, citizens = 0, avenues = 0, streets = 0, V = 0;
 vector<int> *graph;
 
+// Reads the input and converts grid to graph
 void process_input(){
 
     cin >> avenues >> streets;
@@ -51,7 +52,8 @@ void process_input(){
     }
 }
 
-static bool EraseFromUnorderedByIndex(int u, size_t inIndex ){
+// Deletes node by given its index
+static bool deleteByIndex(int u, size_t inIndex ){
     if ( inIndex < graph[u].size() ){
         if ( inIndex != graph[u].size() - 1 )
             graph[u][inIndex] = graph[u].back();
@@ -61,6 +63,7 @@ static bool EraseFromUnorderedByIndex(int u, size_t inIndex ){
     return false;
 }
 
+// Check if v is adjacent to u
 bool isEdge(int u, int v){
     for (int & i : graph[u])
         if(i == v)
@@ -69,21 +72,24 @@ bool isEdge(int u, int v){
     return false;
 }
 
+// Deletes element v from u's list
 void deleteNode(int u, int v){
     for (unsigned int i = 0 ; i < graph[u].size(); i++)
         if(graph[u].at(i) == v) {
-            EraseFromUnorderedByIndex(u, i);
+            deleteByIndex(u, i);
             return;
         }
 }
 
-bool bfs(int s, int t, int parent[]){
+/* Returns true if there is a path from source 's' to sink 't'
+ * and fills pi[] to store the path */
+bool bfs(int s, int t, int pi[]){
     bool visited[V];
     memset(visited, 0, sizeof(visited));
     queue <int> q;
     q.push(s);
     visited[s] = true;
-    parent[s] = -1;
+    pi[s] = -1;
 
     while (!q.empty()){
         int u = q.front();
@@ -93,7 +99,7 @@ bool bfs(int s, int t, int parent[]){
 
         for (int & v : graph[u]){
             if (!visited[v]) {
-                parent[v] = u;
+                pi[v] = u;
                 visited[v] = true;
                 q.push(v);
             }
@@ -102,40 +108,41 @@ bool bfs(int s, int t, int parent[]){
     return visited[t];
 }
 
-int findDisjointPaths(int s, int t){
+/* Returns the maximum flow from s to t
+ * which is the maximum uncrossed paths for
+ * the citizens to get the store */
+int edmondsKarp(int s, int t){
     int u, v;
-    int parent[V];
-    int max_flow = 0;
+    int pi[V];
+    int maxFlow = 0;
 
-    while (bfs(s, t, parent)){
-        int path_flow = INT_MAX;
+    while (bfs(s, t, pi)){  // augmented path
+        int pathFlow = INT_MAX;
 
-        for (v=t; v!=s; v=parent[v]) {
-            u = parent[v];
+        for (v=t; v!=s; v=pi[v]) {
+            u = pi[v];
             if(isEdge(u , v))
-                path_flow = 1;
+                pathFlow = 1; // each edge capacity
             else
-                path_flow = 0;
+                pathFlow = 0;
         }
 
-        for (v=t; v != s; v=parent[v]) {
-            u = parent[v];
+        for (v = t; v != s; v = pi[v]) {
+            u = pi[v];
             deleteNode(u, v);
             graph[v].push_back(u);
         }
-        max_flow += path_flow;
+        maxFlow += pathFlow;
     }
-    return max_flow;
+    return maxFlow;
 }
 
 int main() {
     process_input();
 
     int s = 0, t = V - 1;
-    cout << findDisjointPaths(s, t) << endl;
+    cout << edmondsKarp(s, t) << endl;
     delete[] graph;
 
     return 0;
 }
-
-
